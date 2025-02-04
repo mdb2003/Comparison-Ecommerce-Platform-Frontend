@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { FiCheck, FiUsers, FiDollarSign, FiShoppingBag } from 'react-icons/fi';
+import Typewriter from 'typewriter-effect';
 
 function About() {
   const features = [
@@ -32,8 +33,17 @@ function About() {
           About CompareHub
         </h1>
         <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-          We're on a mission to help shoppers make informed decisions by providing
-          transparent price comparisons across multiple platforms.
+        <Typewriter
+            options={{
+              strings: ["We're on a mission to help shoppers make informed decisions by providing transparent price comparisons across multiple platforms."],
+              autoStart: true,
+              loop: true,
+              delay: 50,
+              deleteSpeed: 1,
+              pauseFor: 500000
+            }}
+          />
+          
         </p>
       </motion.div>
 

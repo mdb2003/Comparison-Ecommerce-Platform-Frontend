@@ -1,27 +1,24 @@
-import About from './About/About';
-import Account from './Account/Account'
-import Cart from './Cart/Cart'
-import Contact from './Contact/Contact'
-import FAQ from './FAQ/FAQ'
-import Home from './Home/Home';
-import Login from './Login/Login'
-import NotFound from './NotFound/NotFound'
-import OTPVerification from './OTPVerification/OTPVerification'
-import ProductComparison from './ProductComparison/ProductComparison'
-import ProductDetails from './ProductDetails/ProductDetails';
-import SearchResults from './SearchResults/SearchResults';
-
-export {
-    About,
-    Account,
-    Cart,
-    Contact,
-    FAQ,
-    Home,
-    Login,
-    NotFound,
-    OTPVerification,
-    ProductComparison,
-    ProductDetails,
-    SearchResults
-};
+export { default as About } from './About/About';
+export { default as Account } from './Account/Account';
+export { default as Admin } from './Admin/Admin';
+export { default as Cart } from './Cart/Cart';
+export { default as Contact } from './Contact/Contact';
+export { default as Deals } from './Deals/Deals';
+export { default as FAQ } from './FAQ/FAQ';
+export { default as Home } from './Home/Home';
+export { default as Language } from './Language/Language';
+export { default as Login } from './Login/Login';
+export { default as NotFound } from './NotFound/NotFound';
+export { default as Notifications } from './Notifications/Notifications';
+export { default as OrderTracking } from './OrderTracking/OrderTracking';
+export { default as OTPVerification } from './OTPVerification/OTPVerification';
+export { default as ProductComparison } from './ProductComparison/ProductComparison';
+export { default as ProductDetails } from './ProductDetails/ProductDetails';
+export { default as Referral } from './Referral/Referral';
+export { default as Reviews } from './Reviews/Reviews';
+export { default as SavedItems } from './SavedItems/SavedItems';
+export { default as SearchResults } from './SearchResults/SearchResults';
+export { default as ForgotPassword } from './ForgotPassword/ForgotPassword';
+export { default as CategoryProducts } from './CategoryProducts/CategoryProducts';
+export { default as PrivacyPolicy } from './PrivacyPolicy/PrivacyPolicy';
+export { default as TermsOfService } from './TermsOfService/TermsOfService';

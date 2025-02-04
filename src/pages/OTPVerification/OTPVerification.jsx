@@ -56,9 +56,11 @@ function OTPVerification() {
         email,
         otp: otpValue,
       });
-
-      localStorage.setItem('accessToken', response.data.access); // Store JWT
-      localStorage.setItem('refreshToken', response.data.refresh); // Store Refresh Token
+      console.log(response);
+      console.log(response.data);
+      
+      localStorage.setItem('accessToken', response.data.access_token); // Store JWT
+      localStorage.setItem('refreshToken', response.data.refresh_token); // Store Refresh Token
       navigate('/'); // Redirect to dashboard or home
     } catch (error) {
       console.error('Error:', error.response.data);

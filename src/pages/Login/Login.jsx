@@ -53,9 +53,14 @@ function Login() {
             email: formData.email,
             password: formData.password,
           });
-
-          localStorage.setItem('accessToken', response.data.access); // Store JWT
-          localStorage.setItem('refreshToken', response.data.refresh); // Store Refresh Token
+          console.log(response.data.access);
+          console.log(response.data.refresh);
+          console.log(response.data);
+          console.log(response);
+          
+          
+          localStorage.setItem('accessToken', response.data.access_token); // Store JWT
+          localStorage.setItem('refreshToken', response.data.refresh_token); // Store Refresh Token
           navigate('/'); // Redirect to dashboard or home
         } else {
           // Signup
