@@ -18,8 +18,8 @@ function SearchResults() {
   const navigate = useNavigate();
 
   // Filter states
-  const [priceRange, setPriceRange] = useState([0, 2000]);
-  const [maxPrice, setMaxPrice] = useState(2000);
+  const [priceRange, setPriceRange] = useState([0, 100000]);
+  const [maxPrice, setMaxPrice] = useState(100000);
   const [selectedRatings, setSelectedRatings] = useState([]);
   const [selectedStores, setSelectedStores] = useState([]);
   const [sortBy, setSortBy] = useState('relevance');
@@ -60,9 +60,11 @@ function SearchResults() {
     let result = [...products];
 
     // Price filter
-    result = result.filter(product => 
-      product.price >= priceRange[0] && product.price <= priceRange[1]
-    );
+    result = result.filter(product => {
+      const productPrice = parseFloat(product.price.replace(/[^\d.]/g, ''));
+      return productPrice >= priceRange[0] && productPrice <= priceRange[1];
+    });
+    
 
     // Rating filter
     if (selectedRatings.length > 0) {
