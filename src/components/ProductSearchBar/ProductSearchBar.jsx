@@ -1,32 +1,29 @@
-import React, { useState } from 'react'
-import { FiSearch } from 'react-icons/fi'
+import React, { useState } from 'react';
+import { FiSearch } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { setQuery, saveSearchHistory } from '../../store/slices/searchSlice';
+import { fetchProducts } from '../../store/slices/productSlice';
 import { useLanguage } from '../../context/LanguageContext';
 
 const ProductSearchBar = () => {
     const { language } = useLanguage();
     const [searchQuery, setSearchQuery] = useState('');
     const navigate = useNavigate();
+    const dispatch = useDispatch();
 
-    const handleSearch = (e) => {
+    const handleSearch = async (e) => {
         e.preventDefault();
         if (searchQuery.trim()) {
-            navigate(`/search?query=${encodeURIComponent(searchQuery)}`);
-        }
-    };
+            // Update search state
+            dispatch(setQuery(searchQuery));
+            dispatch(saveSearchHistory(searchQuery));
 
-    const getPlaceholder = () => {
-        switch (language.code) {
-            case 'en':
-                return 'Search for products...';
-            case 'es':
-                return 'Buscar productos...';
-            case 'fr':
-                return 'Rechercher des produits...';
-            case 'de':
-                return 'Produkte suchen...';
-            default:
-                return 'Search for products...';
+            // Fetch products
+            await dispatch(fetchProducts(searchQuery));
+
+            // Navigate to search results
+            navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
         }
     };
 
@@ -37,7 +34,13 @@ const ProductSearchBar = () => {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={getPlaceholder()}
+                    placeholder={
+                        language.code === 'en' ? "Search for products..." :
+                            language.code === 'es' ? "Buscar productos..." :
+                                language.code === 'fr' ? "Rechercher des produits..." :
+                                    language.code === 'de' ? "Produkte suchen..." :
+                                        "Search for products..."
+                    }
                     className="input pl-12 text-lg"
                 />
                 <FiSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -50,7 +53,7 @@ const ProductSearchBar = () => {
                 </button>
             </div>
         </form>
-    )
-}
+    );
+};
 
-export default ProductSearchBar
+export default ProductSearchBar;
