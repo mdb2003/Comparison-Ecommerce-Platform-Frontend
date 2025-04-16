@@ -1,89 +1,262 @@
-import { useParams } from 'react-router-dom';
-import { FiShoppingCart, FiStar } from 'react-icons/fi';
-import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FiX, FiStar, FiShoppingBag, FiArrowLeft, FiCheck, FiInfo } from 'react-icons/fi';
+import { removeFromComparison } from '../../store/slices/productSlice';
+import { useLanguage } from '../../context/LanguageContext';
+
+const ComparisonAttribute = ({ label, values, highlight = false }) => (
+    <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 p-4 ${highlight ? 'bg-gray-50' : ''} rounded-lg`}>
+        <div className="font-medium text-gray-600">{label}</div>
+        {values.map((value, index) => (
+            <div key={index} className="text-gray-800">
+                {value}
+            </div>
+        ))}
+    </div>
+);
 
 function ProductComparison() {
-  const { productId } = useParams();
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
+    const { formatPrice } = useLanguage();
+    const comparisonList = useSelector((state) => state.products.comparisonList);
 
-  // Mock data for demonstration
-  const stores = [
-    { name: 'Amazon', price: 599.99, rating: 4.5, delivery: '2-day shipping', inStock: true, "url": "https://www.amazon.in/Samsung-Smartphone-Titanium-Storage-_without/dp/B0CT5BJC16/ref=sr_1_3?crid=2EYDWAQ56DZXR&dib=eyJ2IjoiMSJ9.l3Iykx6bCc44vtyTG51s1LUm-piy42_KS9AemhmYbWT0N3rFFgyI9VV7ZMjIs0LI1iBgWcBiIpxJ772vKMDCR3buHyFtNKnew3LV5Fvxho8lR5ZDECppVkfx_gU8XeMQNyPjFk13ldRFn0un1G2HuVM4gFL70tyJK98h5fqw3xpAnzoZI7pl2e1ufiB81_QleNXb9anYX2sGgn3IYGnR01QkC9H2xa6nUeCsvl5tYFA.utYmES16KxlCUGskwRjcTM7Wq4xn99DJ6hq3f--DKW8&dib_tag=se&keywords=samsung%2Bs24%2Bultra%2B5%2Bg%2Bmobile&nsdOptOutParam=true&qid=1738129614&sprefix=samsung%2Bs25%2Bultra%2B5%2Bg%2Bmobile%2Caps%2C318&sr=8-3&th=1" },
-    { name: 'eBay', price: 579.99, rating: 4.3, delivery: '3-5 days', inStock: true, "url": "https://www.ebay.com/itm/276700620319?_skw=samsung+galaxy+s24+ultra&epid=23064930687&itmmeta=01JJR9SN2BKGZ83NB8J6X5DEMD&hash=item406ca4661f:g:Z64AAOSwvNRnK7jU&itmprp=enc%3AAQAJAAAA8HoV3kP08IDx%2BKZ9MfhVJKk5NHMv%2BkxXjGRBxMQMMNcOlJvnZJDd2t%2F7vFdbVKTZ9e91NjNihcutqeS6dVZCb1FhTr68G6wl7OSlz1iCNOP%2Fu7fGcC0HDgeOOyn7cJtEuG97h9vEVC%2BeDsOLgD5jhYfSKN6e0nfGd%2B2GCOLnFmyTzOU0NDWw%2BmlXzb1yUKy17mFik1iBTL8yXIEKwYsVLFRiBkAiLJhQxhf5MoLc6IV9BaPKSyrKbhLto%2FI%2BFnaez8d0zwOeKRGTNSHmUU31oaljNiIrVNSNOzr9WSGzwWGzJUbTE15SU9IQaaJtgodMUQ%3D%3D%7Ctkp%3ABFBMttHmiZZl" },
-    { name: 'Walmart', price: 589.99, rating: 4.4, delivery: 'Next day', inStock: false, "url": "https://www.walmart.com/ip/Samsung-Galaxy-S24-Ultra-256GB-Unlocked-Android-Smartphone-with-200MP-Camera-8K-Video-Long-Battery-Titanium-Gray/5176689747?classType=VARIANT&from=/search" },
-  ];
+    const getHighlightedValue = (attribute) => {
+        const values = comparisonList.map(product => product[attribute]);
+        if (attribute === 'price') {
+            return Math.min(...values);
+        }
+        if (attribute === 'rating') {
+            return Math.max(...values);
+        }
+        return null;
+    };
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-4">Product Comparison</h1>
-        <div className="card p-6 mb-6">
-          <div className="flex gap-6">
-            <div className="w-48 shrink-0">
-              <div className="aspect-w-1 aspect-h-1 bg-gray-200 rounded-lg"></div>
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold mb-2">Product Name</h2>
-              <p className="text-gray-600 mb-4">Product description goes here...</p>
-              <div className="flex items-center text-yellow-400">
-                <FiStar className="fill-current" />
-                <FiStar className="fill-current" />
-                <FiStar className="fill-current" />
-                <FiStar className="fill-current" />
-                <FiStar className="fill-current" />
-                <span className="ml-2 text-gray-600">(4.5 average)</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {stores.map((store, index) => (
-            <motion.div
-              key={store.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="card"
-            >
-              <h3 className="text-lg font-semibold mb-4">{store.name}</h3>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600">Price</p>
-                  <p className="text-2xl font-bold text-primary-600">${store.price}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Rating</p>
-                  <div className="flex items-center">
-                    <span className="text-yellow-400 mr-1">{store.rating}</span>
-                    <FiStar className="text-yellow-400" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Delivery</p>
-                  <p>{store.delivery}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Availability</p>
-                  <p className={store.inStock ? 'text-green-600' : 'text-red-600'}>
-                    {store.inStock ? 'In Stock' : 'Out of Stock'}
-                  </p>
-                </div>
-                <button
-                  className="btn-primary w-full flex items-center justify-center"
-                  disabled={!store.inStock}
+    if (comparisonList.length === 0) {
+        return (
+            <div className="min-h-[80vh] flex items-center justify-center">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center px-4"
                 >
-                  
-                    <FiShoppingCart className="mr-2" />
-                  <Link to={store.url}>Buy Now</Link>
-                </button>
-              </div>
+                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <FiInfo className="w-12 h-12 text-gray-400" />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-4">No Products to Compare</h2>
+                    <p className="text-gray-600 mb-8">Add products to comparison to see their features side by side</p>
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => navigate(-1)}
+                        className="btn-primary flex items-center justify-center mx-auto"
+                    >
+                        <FiArrowLeft className="mr-2" />
+                        Back to Search
+                    </motion.button>
+                </motion.div>
+            </div>
+        );
+    }
+
+    const bestPrice = getHighlightedValue('price');
+    const bestRating = getHighlightedValue('rating');
+
+    return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center justify-between mb-8"
+            >
+                <div>
+                    <h1 className="text-3xl font-bold mb-2">Product Comparison</h1>
+                    <p className="text-gray-600">Compare features and prices side by side</p>
+                </div>
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => navigate(-1)}
+                    className="btn-secondary flex items-center"
+                >
+                    <FiArrowLeft className="mr-2" />
+                    Back to Search
+                </motion.button>
             </motion.div>
-          ))}
+
+            {/* Product Cards - Mobile View */}
+            <div className="md:hidden space-y-6 mb-8">
+                <AnimatePresence>
+                    {comparisonList.map((product, index) => (
+                        <motion.div
+                            key={product.title}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="card relative"
+                        >
+                            <button
+                                onClick={() => dispatch(removeFromComparison(product))}
+                                className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-gray-100 transition-colors"
+                            >
+                                <FiX className="w-5 h-5" />
+                            </button>
+
+                            <div className="flex gap-4">
+                                <div className="w-24 h-24 shrink-0">
+                                    <img
+                                        src={product.image}
+                                        alt={product.title}
+                                        className="w-full h-full object-cover rounded-lg"
+                                    />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold mb-2">{product.title}</h3>
+                                    <div className="flex items-center mb-2">
+                                        <div className="flex text-yellow-400 mr-2">
+                                            {[...Array(5)].map((_, i) => (
+                                                <FiStar
+                                                    key={i}
+                                                    className={`w-4 h-4 ${i < Math.floor(product.rating) ? 'fill-current' : ''}`}
+                                                />
+                                            ))}
+                                        </div>
+                                        <span className="text-sm text-gray-600">({product.rating})</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-xl font-bold text-primary-600">
+                                            {formatPrice(product.price)}
+                                            {product.price === bestPrice && (
+                                                <span className="ml-2 text-sm font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                                                    Best Price
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 pt-4 border-t">
+                                <div className="flex justify-between text-sm text-gray-600 mb-2">
+                                    <span>Store:</span>
+                                    <span className="font-medium">{product.source}</span>
+                                </div>
+                                <a
+                                    href={product.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn-primary w-full flex items-center justify-center"
+                                >
+                                    <FiShoppingBag className="mr-2" />
+                                    Buy Now
+                                </a>
+                            </div>
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+            </div>
+
+            {/* Comparison Table - Desktop View */}
+            <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
+                {/* Product Headers */}
+                <div className="grid grid-cols-4 gap-4 p-6 border-b">
+                    <div className="font-semibold text-lg">Compare</div>
+                    {comparisonList.map((product) => (
+                        <motion.div
+                            key={product.title}
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="relative"
+                        >
+                            <button
+                                onClick={() => dispatch(removeFromComparison(product))}
+                                className="absolute -top-2 -right-2 p-2 bg-white rounded-full shadow-md hover:bg-gray-100 transition-colors"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                            <img
+                                src={product.image}
+                                alt={product.title}
+                                className="w-full aspect-square object-cover rounded-lg mb-4"
+                            />
+                            <h3 className="font-semibold text-lg mb-2 line-clamp-2">{product.title}</h3>
+                            <div className="flex items-center mb-2">
+                                <div className="flex text-yellow-400 mr-2">
+                                    {[...Array(5)].map((_, i) => (
+                                        <FiStar
+                                            key={i}
+                                            className={`w-4 h-4 ${i < Math.floor(product.rating) ? 'fill-current' : ''}`}
+                                        />
+                                    ))}
+                                </div>
+                                <span className="text-sm text-gray-600">({product.rating})</span>
+                            </div>
+                            <div className="text-2xl font-bold text-primary-600 mb-4">
+                                {formatPrice(product.price)}
+                                {product.price === bestPrice && (
+                                    <div className="mt-1 text-sm font-medium inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                                        <FiCheck className="w-4 h-4 mr-1" />
+                                        Best Price
+                                    </div>
+                                )}
+                            </div>
+                            <a
+                                href={product.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-primary w-full flex items-center justify-center"
+                            >
+                                <FiShoppingBag className="mr-2" />
+                                Buy Now
+                            </a>
+                        </motion.div>
+                    ))}
+                </div>
+
+                {/* Comparison Attributes */}
+                <div className="divide-y">
+                    <ComparisonAttribute
+                        label="Store"
+                        values={comparisonList.map(product => (
+                            <span className="inline-flex items-center px-2 py-1 bg-gray-100 rounded-full text-sm">
+                                {product.source}
+                            </span>
+                        ))}
+                    />
+                    <ComparisonAttribute
+                        label="Price"
+                        values={comparisonList.map(product => (
+                            <div className={product.price === bestPrice ? 'text-green-600 font-semibold' : ''}>
+                                {formatPrice(product.price)}
+                            </div>
+                        ))}
+                        highlight
+                    />
+                    <ComparisonAttribute
+                        label="Rating"
+                        values={comparisonList.map(product => (
+                            <div className={product.rating === bestRating ? 'text-yellow-600 font-semibold' : ''}>
+                                <div className="flex items-center">
+                                    <div className="flex text-yellow-400 mr-2">
+                                        {[...Array(5)].map((_, i) => (
+                                            <FiStar
+                                                key={i}
+                                                className={`w-4 h-4 ${i < Math.floor(product.rating) ? 'fill-current' : ''}`}
+                                            />
+                                        ))}
+                                    </div>
+                                    <span>({product.rating})</span>
+                                </div>
+                            </div>
+                        ))}
+                        highlight
+                    />
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 }
 
 export default ProductComparison;
