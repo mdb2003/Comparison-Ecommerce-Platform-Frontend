@@ -34,6 +34,7 @@ const filterSlice = createSlice({
             } else {
                 state.selectedStores.splice(index, 1);
             }
+            console.log(`Store filter updated: ${state.selectedStores}`);
         },
         setSortOrder: (state, action) => {
             state.sortOrder = action.payload;

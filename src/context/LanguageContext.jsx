@@ -1,8 +1,12 @@
 import { createContext, useState, useContext, useEffect } from 'react';
+import { convertCurrency } from '../utils/currencyUtils';
 
 const LanguageContext = createContext();
 
 export function LanguageProvider({ children }) {
+    // Application's base currency - all product prices from backend are in INR
+    const BASE_CURRENCY = 'INR';
+    
     // Load saved settings from localStorage or use defaults
     const [language, setLanguage] = useState(() => {
         const savedLanguage = localStorage.getItem('language');
@@ -16,9 +20,9 @@ export function LanguageProvider({ children }) {
     const [currency, setCurrency] = useState(() => {
         const savedCurrency = localStorage.getItem('currency');
         return savedCurrency ? JSON.parse(savedCurrency) : {
-            code: 'USD',
-            symbol: '$',
-            name: 'US Dollar'
+            code: 'INR',
+            symbol: '₹',
+            name: 'Indian Rupee'
         };
     });
 
@@ -47,12 +51,27 @@ export function LanguageProvider({ children }) {
         localStorage.setItem('timeFormat', timeFormat);
     }, [timeFormat]);
 
-    const formatPrice = (price) => {
+    const formatPrice = (price, sourceCurrency = BASE_CURRENCY) => {
+        if (price === undefined || price === null || isNaN(price)) {
+            return '';
+        }
+        
+        // First convert the price from source currency to the selected currency
+        const convertedPrice = convertCurrency(
+            parseFloat(price),
+            sourceCurrency,
+            currency.code
+        );
+        
+        // Then format according to the user's locale
         const formatter = new Intl.NumberFormat(language.code, {
             style: 'currency',
-            currency: currency.code
+            currency: currency.code,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         });
-        return formatter.format(price);
+        
+        return formatter.format(convertedPrice);
     };
 
     const formatDate = (date) => {
@@ -81,7 +100,8 @@ export function LanguageProvider({ children }) {
                 setTimeFormat,
                 formatPrice,
                 formatDate,
-                formatTime
+                formatTime,
+                baseCurrency: BASE_CURRENCY
             }}
         >
             {children}

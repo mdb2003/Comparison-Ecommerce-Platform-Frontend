@@ -22,3 +22,4 @@ export { default as FAQ } from './FAQ/FAQ';
 export { default as NotFound } from './NotFound/NotFound';
 export { default as Referral } from './Referral/Referral';
 export { default as Reviews } from './Reviews/Reviews';
+export { default as ResetPassword } from './ResetPassword/ResetPassword';

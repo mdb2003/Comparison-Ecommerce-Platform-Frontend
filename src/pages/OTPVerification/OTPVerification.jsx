@@ -10,7 +10,9 @@ function OTPVerification() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+  
   const email = location.state?.email || '';
+  const isPasswordReset = location.state?.isPasswordReset || false;
 
   useEffect(() => {
     const countdown = timer > 0 && setInterval(() => setTimer(timer - 1), 1000);
@@ -52,29 +54,46 @@ function OTPVerification() {
     }
 
     try {
-      const response = await API.post('verify-otp/', {
-        email,
-        otp: otpValue,
-      });
-      console.log(response);
-      console.log(response.data);
-      
-      localStorage.setItem('accessToken', response.data.access_token); // Store JWT
-      localStorage.setItem('refreshToken', response.data.refresh_token); // Store Refresh Token
-      navigate('/'); // Redirect to dashboard or home
+      if (isPasswordReset) {
+        // For password reset flow
+        // Just validate the OTP
+        navigate('/reset-password', { 
+          state: { 
+            email, 
+            otp: otpValue
+          } 
+        });
+      } else {
+        // For account verification flow
+        const response = await API.post('verify-otp/', {
+          email,
+          otp: otpValue,
+        });
+        
+        // Store tokens
+        localStorage.setItem('accessToken', response.data.access_token);
+        localStorage.setItem('refreshToken', response.data.refresh_token);
+        navigate('/'); // Redirect to home
+      }
     } catch (error) {
-      console.error('Error:', error.response.data);
-      setError(error.response.data.detail || 'Invalid OTP');
+      console.error('Error:', error.response?.data);
+      setError(error.response?.data?.error || 'Invalid OTP');
     }
   };
 
   const handleResendOTP = async () => {
     if (timer === 0) {
       try {
-        await API.post('resend-otp/', { email });
+        if (isPasswordReset) {
+          await API.post('forgot-password/', { email });
+        } else {
+          await API.post('resend-otp/', { email });
+        }
         setTimer(30); // Reset timer
+        setError('');
       } catch (error) {
-        console.error('Error:', error.response.data);
+        console.error('Error:', error.response?.data);
+        setError('Failed to resend OTP. Please try again.');
       }
     }
   };
@@ -89,15 +108,15 @@ function OTPVerification() {
           className="card"
         >
           <button
-            onClick={() => navigate('/login')}
+            onClick={() => navigate(isPasswordReset ? '/forgot-password' : '/login')}
             className="flex items-center text-gray-600 hover:text-primary-600 mb-6"
           >
-            <FiArrowLeft className="mr-2" /> Back to Login
+            <FiArrowLeft className="mr-2" /> Back
           </button>
 
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">
-              Verify Your Email
+              {isPasswordReset ? 'Reset Password' : 'Verify Your Email'}
             </h2>
             <p className="text-gray-600">
               We've sent a verification code to<br />
@@ -130,7 +149,7 @@ function OTPVerification() {
             </div>
 
             <button type="submit" className="btn-primary w-full">
-              Verify Email
+              {isPasswordReset ? 'Continue' : 'Verify Email'}
             </button>
 
             <div className="text-center">

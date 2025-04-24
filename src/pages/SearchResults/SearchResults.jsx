@@ -2,12 +2,15 @@ import { useEffect, useCallback, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiFilter, FiGrid, FiList, FiStar, FiHeart, FiShoppingBag, FiX, FiChevronDown, FiShoppingCart, FiExternalLink } from 'react-icons/fi';
+import { FiFilter, FiGrid, FiList, FiStar, FiHeart, FiShoppingBag, FiX, FiChevronDown, FiShoppingCart, FiExternalLink, FiDollarSign, FiRefreshCw } from 'react-icons/fi';
 import { useLanguage } from '../../context/LanguageContext';
-import { fetchProducts, addToComparison } from '../../store/slices/productSlice';
+import { fetchProducts, addToComparison, fetchTestProducts } from '../../store/slices/productSlice';
 import { toggleViewMode, toggleFiltersPanel } from '../../store/slices/uiSlice';
 import { toggleSavedItem } from '../../store/slices/savedItemsSlice';
 import { toast } from 'react-hot-toast';
+import ProductLoadingState from '../../components/ProductLoadingState/ProductLoadingState';
+import { t, isRTL } from '../../utils/translationUtils';
+import { getExchangeRate } from '../../utils/currencyUtils';
 import {
   setPriceRange,
   toggleRating,
@@ -22,16 +25,16 @@ function ProductImage({ src, alt }) {
   const [error, setError] = useState(false);
 
   return (
-    <div className="relative w-full aspect-square bg-gray-50 rounded-xl overflow-hidden group">
+    <div className="product-image-wrapper relative w-full aspect-square bg-gray-50 rounded-xl overflow-hidden group">
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="animate-pulse bg-gray-100 w-full h-full" />
+          <div className="loading-shimmer w-full h-full" />
         </div>
       )}
       <img
         src={src || 'https://dummyimage.com/400x400/e0e0e0/ffffff&text=No+Image'}
         alt={alt}
-        className={`w-full h-full object-contain p-4 transform group-hover:scale-110 transition-all duration-300 ${
+        className={`product-image w-full h-full object-contain p-4 ${
           isLoading ? 'opacity-0' : 'opacity-100'
         }`}
         onLoad={() => setIsLoading(false)}
@@ -41,7 +44,7 @@ function ProductImage({ src, alt }) {
           e.target.src = 'https://dummyimage.com/400x400/e0e0e0/ffffff&text=No+Image';
         }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
     </div>
   );
 }
@@ -53,28 +56,85 @@ function SearchResults() {
   const { products, loading, error } = useSelector((state) => state.products);
   const { viewMode, showFilters } = useSelector((state) => state.ui);
   const { priceRange, selectedRatings, selectedStores, sortOrder } = useSelector((state) => state.filter);
-  const { language, formatPrice } = useLanguage();
+  const { language, formatPrice, currency, baseCurrency } = useLanguage();
   const navigate = useNavigate();
   const comparisonList = useSelector((state) => state.products.comparisonList);
   const savedItems = useSelector((state) => state.savedItems.items);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [usingTestData, setUsingTestData] = useState(false);
+  const [filtersVisible, setFiltersVisible] = useState(true);
+
+  // Check for RTL languages
+  const isRtl = isRTL(language.code);
+  
+  // Get the exchange rate between base currency and selected currency
+  const currentExchangeRate = getExchangeRate(baseCurrency, currency.code);
+  const showCurrencyBanner = baseCurrency !== currency.code;
 
   useEffect(() => {
     if (query) {
+      console.log('SearchResults: Fetching products for query:', query);
       dispatch(fetchProducts(query));
     }
   }, [dispatch, query]);
 
+  // If we encounter a connection error, load test data
+  useEffect(() => {
+    if (error && error.includes('connect to the server')) {
+      console.log('SearchResults: Using test data due to connection error');
+      setUsingTestData(true);
+      dispatch(fetchTestProducts(query));
+    }
+  }, [dispatch, error, query]);
+
+  useEffect(() => {
+    console.log('SearchResults: Products state updated', { 
+      count: products?.length || 0, 
+      loading, 
+      error,
+      productsArray: Array.isArray(products),
+      firstProduct: products && products.length > 0 ? products[0] : null
+    });
+  }, [products, loading, error]);
+
   const getFilteredProducts = useCallback(() => {
-    if (!Array.isArray(products)) return [];
+    if (!Array.isArray(products)) {
+      console.warn('Products is not an array:', products);
+      return [];
+    }
 
-    return products.filter(product => {
-      const price = parseFloat(product.price);
+    console.log(`Filtering ${products.length} products with criteria:`, {
+      priceRange, selectedRatings, selectedStores, sortOrder
+    });
+
+    // Log sources of products for debugging
+    const sources = {};
+    products.forEach(product => {
+      const source = product.source || 'Unknown';
+      sources[source] = (sources[source] || 0) + 1;
+    });
+    console.log('Product sources before filtering:', sources);
+
+    // Apply filters
+    const filteredProducts = products.filter(product => {
+      const price = parseFloat(product.price) || 0;
       const inPriceRange = price >= priceRange.min && price <= priceRange.max;
-      const inRatingRange = selectedRatings.length === 0 || selectedRatings.includes(Math.floor(product.rating));
-      const inSelectedStores = selectedStores.length === 0 || selectedStores.includes(product.source);
-
-      return inPriceRange && inRatingRange && inSelectedStores;
+      
+      const rating = Math.floor(parseFloat(product.rating) || 0);
+      const inRatingRange = selectedRatings.length === 0 || selectedRatings.includes(rating);
+      
+      // Normalize store names for consistent comparison
+      const productSource = product.source || 'Unknown';
+      const inSelectedStores = selectedStores.length === 0 || selectedStores.includes(productSource);
+      
+      const shouldInclude = inPriceRange && inRatingRange && inSelectedStores;
+      
+      if (!shouldInclude) {
+        console.log(`Excluded product: ${product.title}, price: ${price}, rating: ${rating}, source: ${productSource}`);
+        console.log(`Excluded because: price range (${inPriceRange}), rating (${inRatingRange}), store (${inSelectedStores})`);
+      }
+      
+      return shouldInclude;
     }).sort((a, b) => {
       switch (sortOrder) {
         case 'price_low':
@@ -87,15 +147,20 @@ function SearchResults() {
           return 0;
       }
     });
+    
+    // Log sources after filtering
+    const filteredSources = {};
+    filteredProducts.forEach(product => {
+      const source = product.source || 'Unknown';
+      filteredSources[source] = (filteredSources[source] || 0) + 1;
+    });
+    console.log('Product sources after filtering:', filteredSources);
+    
+    return filteredProducts;
   }, [products, priceRange, selectedRatings, selectedStores, sortOrder]);
 
-  const handlePriceRangeChange = (e) => {
-    const value = parseInt(e.target.value);
-    if (e.target.id === 'minPrice') {
-      dispatch(setPriceRange({ ...priceRange, min: value }));
-    } else {
-      dispatch(setPriceRange({ ...priceRange, max: value }));
-    }
+  const handlePriceChange = (e) => {
+    dispatch(setPriceRange([0, parseInt(e.target.value)]));
   };
 
   const handleToggleRating = (rating) => {
@@ -137,12 +202,26 @@ function SearchResults() {
   };
 
   const handleAddToCart = (product) => {
+    if (product.price === 0) {
+      toast.error('This product is out of stock');
+      return;
+    }
     dispatch(addToCart(product));
     toast.success('Added to cart');
   };
 
   const handleBuyNow = (product) => {
+    if (product.price === 0) {
+      toast.error('This product is out of stock');
+      return;
+    }
     window.open(product.link, '_blank');
+  };
+
+  // Add this function to handle retry with test data
+  const handleTryWithTestData = () => {
+    setUsingTestData(true);
+    dispatch(fetchTestProducts(query));
   };
 
   const FiltersPanel = ({ isMobile = false }) => (
@@ -179,7 +258,7 @@ function SearchResults() {
                   type="number"
                   id="minPrice"
                   value={priceRange.min}
-                  onChange={handlePriceRangeChange}
+                  onChange={handlePriceChange}
                   className="input mt-1 w-full"
                   placeholder="0"
                 />
@@ -190,7 +269,7 @@ function SearchResults() {
                   type="number"
                   id="maxPrice"
                   value={priceRange.max}
-                  onChange={handlePriceRangeChange}
+                  onChange={handlePriceChange}
                   className="input mt-1 w-full"
                   placeholder="1000"
                 />
@@ -242,7 +321,7 @@ function SearchResults() {
         <div className="card">
           <h2 className="font-semibold mb-4">Stores</h2>
           <div className="space-y-2">
-            {['Amazon', 'eBay', 'Walmart'].map((store) => (
+            {['Amazon', 'Flipkart', 'eBay', 'Walmart'].map((store) => (
               <motion.button
                 key={store}
                 onClick={() => handleToggleStore(store)}
@@ -280,250 +359,374 @@ function SearchResults() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-sm p-6 mb-8"
-        >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold mb-2">
-                Search Results for "{query}"
-              </h1>
-              <p className="text-gray-600">
-                Found {getFilteredProducts().length} products
-              </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {getFilteredProducts().length > 0 
+                ? `${t('resultsFor', language.code) || 'Results for'} "${query}"`
+                : `${t('searchingFor', language.code) || 'Searching for'} "${query}"`}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {loading 
+                ? t('loading', language.code) || 'Loading...'
+                : getFilteredProducts().length > 0 
+                  ? `${getFilteredProducts().length} ${t('productsFound', language.code) || 'products found'}`
+                  : t('noResults', language.code) || 'No results found'}
+            </p>
+          </div>
+          
+          {/* View and Filter Controls */}
+          <div className="flex items-center space-x-4">
+            {/* View Mode Toggle */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex p-1">
+              <button
+                onClick={() => dispatch(toggleViewMode('grid'))}
+                className={`p-2 rounded ${viewMode === 'grid' ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:text-gray-700'}`}
+                aria-label={t('gridView', language.code) || 'Grid view'}
+              >
+                <FiGrid className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => dispatch(toggleViewMode('list'))}
+                className={`p-2 rounded ${viewMode === 'list' ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:text-gray-700'}`}
+                aria-label={t('listView', language.code) || 'List view'}
+              >
+                <FiList className="w-5 h-5" />
+              </button>
             </div>
-            <div className="flex flex-wrap items-center gap-4">
+            
+            {/* Sort Dropdown */}
+            <div className="relative">
               <select
                 value={sortOrder}
                 onChange={handleSortChange}
-                className="input min-w-[160px]"
+                className="appearance-none bg-white border border-gray-200 rounded-lg px-4 py-2 pr-8 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-700"
               >
-                <option value="relevance">Most Relevant</option>
+                <option value="relevance">Relevance</option>
                 <option value="price_low">Price: Low to High</option>
                 <option value="price_high">Price: High to Low</option>
-                <option value="rating">Highest Rated</option>
+                <option value="rating">Rating</option>
               </select>
-              
-              {/* Mobile Filter Button */}
-              <button
-                onClick={() => setShowMobileFilters(true)}
-                className="md:hidden btn-secondary flex items-center"
-              >
-                <FiFilter className="mr-2" /> Filters
-              </button>
-
-              {/* Desktop Filter Button */}
-              <button
-                onClick={() => dispatch(toggleFiltersPanel())}
-                className="hidden md:flex btn-secondary items-center"
-              >
-                <FiFilter className="mr-2" /> Filters
-              </button>
-
-              <div className="flex space-x-2 bg-gray-100 p-1 rounded-lg">
-                <button
-                  onClick={() => dispatch(toggleViewMode('grid'))}
-                  className={`p-2 rounded-lg transition-colors ${
-                    viewMode === 'grid'
-                      ? 'bg-white text-primary-600 shadow-sm'
-                      : 'text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <FiGrid className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => dispatch(toggleViewMode('list'))}
-                  className={`p-2 rounded-lg transition-colors ${
-                    viewMode === 'list'
-                      ? 'bg-white text-primary-600 shadow-sm'
-                      : 'text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <FiList className="w-5 h-5" />
-                </button>
-              </div>
+              <FiChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none" />
             </div>
-          </div>
-        </motion.div>
-
-        {/* Mobile Filters Panel */}
-        <AnimatePresence>
-          {showMobileFilters && (
-            <FiltersPanel isMobile />
-          )}
-        </AnimatePresence>
-
-        {/* Main Content */}
-        <div className="flex gap-8">
-          {/* Desktop Filters Panel */}
-          {showFilters && (
-            <div className="hidden md:block">
-              <FiltersPanel />
-            </div>
-          )}
-
-          {/* Products Grid/List */}
-          <div className="flex-grow">
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <div key={n} className="card animate-pulse">
-                    <div className="aspect-square bg-gray-200 rounded-xl mb-4" />
-                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
-                    <div className="h-4 bg-gray-200 rounded w-1/2" />
-                  </div>
-                ))}
-              </div>
-            ) : error ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-12"
-              >
-                <div className="text-red-500 text-xl mb-4">{error}</div>
-                <button
-                  onClick={() => dispatch(fetchProducts(query))}
-                  className="btn-primary"
-                >
-                  Try Again
-                </button>
-              </motion.div>
-            ) : (
-              <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
-                <AnimatePresence>
-                  {getFilteredProducts().map((product) => (
-                    <motion.div
-                      key={`${product.title}-${product.source}`}
-                      layout
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className={`card group hover:shadow-lg transition-shadow ${
-                        viewMode === 'list' ? 'flex flex-col sm:flex-row gap-4 sm:gap-6' : ''
-                      }`}
-                    >
-                      <div className={viewMode === 'list' ? 'w-full sm:w-48 md:w-56 lg:w-64 shrink-0' : ''}>
-                        <ProductImage src={product.image} alt={product.title} />
-                      </div>
-                      <div className="flex-grow">
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
-                          <h3 className="font-semibold text-lg group-hover:text-primary-600 transition-colors">
-                            {product.title}
-                          </h3>
-                          <span className="text-sm font-medium px-2 py-1 bg-primary-50 text-primary-600 rounded-full shrink-0 self-start">
-                            {product.source}
-                          </span>
-                        </div>
-                        <div className="flex items-center mb-2">
-                          <div className="flex text-yellow-400 mr-2">
-                            {[...Array(5)].map((_, index) => (
-                              <FiStar
-                                key={index}
-                                className={`w-4 h-4 ${
-                                  index < Math.floor(product.rating)
-                                    ? 'fill-current'
-                                    : ''
-                                }`}
-                              />
-                            ))}
-                          </div>
-                          <span className="text-sm text-gray-600">
-                            ({product.rating})
-                          </span>
-                        </div>
-                        <div className="text-2xl font-bold text-primary-600 mb-4">
-                          {formatPrice(product.price)}
-                        </div>
-                        <div className={`flex gap-2 ${viewMode === 'list' ? 'sm:justify-start' : ''}`}>
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => handleCompare(product)}
-                            className={`flex-grow sm:flex-grow-0 btn-primary flex items-center justify-center gap-2 ${
-                              viewMode === 'list' ? 'sm:px-6' : ''
-                            } ${
-                              comparisonList.some(p => p.title === product.title)
-                                ? 'bg-green-500 hover:bg-green-600'
-                                : ''
-                            }`}
-                          >
-                            <FiShoppingBag className="w-4 h-4" />
-                            {comparisonList.some(p => p.title === product.title)
-                              ? 'Added to Compare'
-                              : 'Compare'}
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => handleSaveItem(product)}
-                            className={`btn-secondary p-2 ${
-                              savedItems.some(
-                                item => item.title === product.title && 
-                                item.source === product.source
-                              )
-                                ? 'text-red-500'
-                                : ''
-                            }`}
-                          >
-                            <FiHeart className={
-                              savedItems.some(
-                                item => item.title === product.title && 
-                                item.source === product.source
-                              )
-                                ? 'fill-current'
-                                : ''
-                            } />
-                          </motion.button>
-                          <div className="flex space-x-2 mt-2">
-                            <button
-                              onClick={() => handleAddToCart(product)}
-                              className="btn-primary flex items-center"
-                            >
-                              <FiShoppingCart className="mr-2" />
-                              Add to Cart
-                            </button>
-                            <button
-                              onClick={() => handleBuyNow(product)}
-                              className="btn-secondary flex items-center"
-                            >
-                              <FiExternalLink className="mr-2" />
-                              Buy Now
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
+            
+            {/* Filter Toggle Button */}
+            <button
+              onClick={() => setFiltersVisible(!filtersVisible)}
+              className={`p-2 rounded-lg border border-gray-200 shadow-sm ${filtersVisible ? 'bg-primary-50 text-primary-600' : 'bg-white text-gray-600 hover:text-gray-800'}`}
+            >
+              <FiFilter className="w-5 h-5" />
+            </button>
+            
+            {/* Mobile Filter Button */}
+            <button
+              onClick={() => setShowMobileFilters(true)}
+              className="md:hidden p-2 rounded-lg border border-gray-200 shadow-sm bg-white text-gray-600 hover:text-gray-800"
+            >
+              <FiFilter className="w-5 h-5" />
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Comparison Floating Button */}
-      <AnimatePresence>
-        {comparisonList.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 100 }}
+        {/* Currency Conversion Banner */}
+        {showCurrencyBanner && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 100 }}
-            className="fixed bottom-4 right-4 z-50"
+            className="bg-blue-50 border border-blue-200 rounded-lg p-4 my-6 flex items-center"
           >
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/compare')}
-              className="btn-primary shadow-lg flex items-center gap-2 px-6 py-3"
-            >
-              <span>Compare Products ({comparisonList.length})</span>
-              <FiChevronDown className="w-5 h-5" />
-            </motion.button>
+            <FiDollarSign className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0" />
+            <div className="flex-grow">
+              <p className="text-blue-700 font-medium">All prices converted from {baseCurrency} to {currency.code}</p>
+              <p className="text-blue-600 text-sm flex items-center">
+                <FiRefreshCw className="w-4 h-4 mr-1" />
+                <span>Exchange rate: 1 {baseCurrency} = {currentExchangeRate.toFixed(4)} {currency.code}</span>
+              </p>
+            </div>
           </motion.div>
+        )}
+
+        <div className="flex mt-6 gap-6">
+          {/* Desktop Filters Sidebar */}
+          <AnimatePresence>
+            {filtersVisible && (
+              <motion.div
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                className="hidden md:block"
+              >
+                <FiltersPanel />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          {/* Products */}
+          <motion.div 
+            layout
+            className="flex-1"
+          >
+            {/* Error State */}
+            {error && !usingTestData && (
+              <div className="p-6 bg-white rounded-xl shadow-md mb-8 text-center">
+                <div className="text-red-500 mb-4">
+                  <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Could not connect to the server</h3>
+                <p className="text-gray-600 mb-4">{error}</p>
+                <div className="flex justify-center">
+                  <button
+                    onClick={handleTryWithTestData}
+                    className="btn-primary"
+                  >
+                    Continue with sample data
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Loading State */}
+            {loading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                {[...Array(6)].map((_, i) => (
+                  <ProductLoadingState key={i} />
+                ))}
+              </div>
+            )}
+            
+            {/* No Results */}
+            {!loading && getFilteredProducts().length === 0 && (
+              <div className="p-8 bg-white rounded-xl shadow-sm text-center">
+                <div className="text-gray-400 mb-4">
+                  <svg className="mx-auto h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-medium text-gray-900 mb-2">No results found</h3>
+                <p className="text-gray-600 mb-6">We couldn't find any products matching your search and filters.</p>
+                <button
+                  onClick={handleClearFilters}
+                  className="btn-primary"
+                >
+                  Clear filters and try again
+                </button>
+              </div>
+            )}
+            
+            {/* Grid View */}
+            {!loading && viewMode === 'grid' && getFilteredProducts().length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                {getFilteredProducts().map((product) => (
+                  <motion.div
+                    key={`${product.title}-${product.source}`}
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    whileHover={{ y: -5 }}
+                    className="bg-white rounded-xl shadow-sm overflow-hidden transition-shadow hover:shadow-md"
+                  >
+                    <div className="p-4">
+                      <ProductImage src={product.image} alt={product.title} />
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                            {product.source}
+                          </span>
+                          <div className="flex items-center">
+                            <span className="text-yellow-400">★</span>
+                            <span className="text-gray-600 text-sm ml-1">
+                              {product.rating ? parseFloat(product.rating).toFixed(1) : 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                        <h3 className="font-medium text-gray-900 mt-2 line-clamp-2">
+                          {product.title}
+                        </h3>
+                        <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between">
+                          <span className="text-xl font-bold text-gray-900">
+                            {formatPrice(product.price)}
+                          </span>
+                          <div className="mt-2 sm:mt-0 flex items-center space-x-2">
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleAddToCart(product)}
+                              className={`p-2 rounded-lg ${
+                                comparisonList.some((p) => p.title === product.title && p.source === product.source)
+                                  ? 'bg-green-50 text-green-600'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              <FiShoppingCart className="w-5 h-5" />
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleSaveItem(product)}
+                              className={`p-2 rounded-lg ${
+                                savedItems.some((item) => item.title === product.title && item.source === product.source)
+                                  ? 'bg-red-50 text-red-600'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              <FiHeart className="w-5 h-5" />
+                            </motion.button>
+                          </div>
+                        </div>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => handleCompare(product)}
+                            className="btn-primary py-2"
+                          >
+                            Add to Compare
+                          </button>
+                          <button
+                            onClick={() => handleBuyNow(product)}
+                            className="btn-secondary py-2"
+                          >
+                            Buy Now
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+            
+            {/* List View */}
+            {!loading && viewMode === 'list' && getFilteredProducts().length > 0 && (
+              <div className="space-y-6">
+                {getFilteredProducts().map((product) => (
+                  <motion.div
+                    key={`${product.title}-${product.source}`}
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="bg-white rounded-xl shadow-sm overflow-hidden flex flex-col sm:flex-row transition-shadow hover:shadow-md"
+                  >
+                    <div className="sm:w-48 flex-shrink-0">
+                      <ProductImage src={product.image} alt={product.title} />
+                    </div>
+                    <div className="p-4 flex flex-col flex-grow justify-between">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                            {product.source}
+                          </span>
+                          <div className="flex items-center">
+                            <span className="text-yellow-400">★</span>
+                            <span className="text-gray-600 text-sm ml-1">
+                              {product.rating ? parseFloat(product.rating).toFixed(1) : 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                        <h3 className="font-medium text-gray-900 mt-2">
+                          {product.title}
+                        </h3>
+                        <p className="text-gray-600 text-sm mt-1 line-clamp-2">
+                          {product.description || 'No description available'}
+                        </p>
+                      </div>
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                        <span className="text-xl font-bold text-gray-900">
+                          {formatPrice(product.price)}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleAddToCart(product)}
+                            className={`p-2 rounded-lg ${
+                              comparisonList.some((p) => p.title === product.title && p.source === product.source)
+                                ? 'bg-green-50 text-green-600'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <FiShoppingCart className="w-5 h-5" />
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleSaveItem(product)}
+                            className={`p-2 rounded-lg ${
+                              savedItems.some((item) => item.title === product.title && item.source === product.source)
+                                ? 'bg-red-50 text-red-600'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <FiHeart className="w-5 h-5" />
+                          </motion.button>
+                          <button
+                            onClick={() => handleCompare(product)}
+                            className="btn-primary px-3 py-1.5"
+                          >
+                            Add to Compare
+                          </button>
+                          <button
+                            onClick={() => handleBuyNow(product)}
+                            className="btn-secondary px-3 py-1.5"
+                          >
+                            Buy Now
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+
+            {/* Comparison List Floating Button */}
+            {comparisonList.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-30"
+              >
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => navigate('/compare')}
+                  className="btn-primary shadow-lg flex items-center px-6 py-3 rounded-full"
+                >
+                  <span>Compare {comparisonList.length} Products</span>
+                  <span className="ml-2 bg-white text-primary-600 w-6 h-6 rounded-full flex items-center justify-center font-bold">
+                    {comparisonList.length}
+                  </span>
+                </motion.button>
+              </motion.div>
+            )}
+          </motion.div>
+        </div>
+      </div>
+      
+      {/* Mobile Filters Modal */}
+      <AnimatePresence>
+        {showMobileFilters && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-50 z-40"
+              onClick={() => setShowMobileFilters(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: '100%' }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: '100%' }}
+              transition={{ type: 'spring', damping: 25 }}
+              className="fixed inset-x-0 bottom-0 h-4/5 bg-white rounded-t-2xl z-50 overflow-hidden"
+            >
+              <FiltersPanel isMobile={true} />
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>

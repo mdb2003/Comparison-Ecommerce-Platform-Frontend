@@ -8,12 +8,16 @@ function ResetPassword() {
     const navigate = useNavigate();
     const location = useLocation();
     
-    // Extract token from URL query params or state
-    const searchParams = new URLSearchParams(location.search);
-    const token = searchParams.get('token') || location.state?.token;
+    // Get email and OTP from location state (passed from OTP verification)
+    const { email, otp } = location.state || {};
+    
+    if (!email || !otp) {
+        // If no email or OTP, redirect to forgot password page
+        navigate('/forgot-password');
+    }
 
     const [formData, setFormData] = useState({
-        password: '',
+        newPassword: '',
         confirmPassword: ''
     });
     const [showPassword, setShowPassword] = useState(false);
@@ -29,27 +33,35 @@ function ResetPassword() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsSubmitting(true);
+        setError('');
         
-        if (newPassword !== confirmPassword) {
+        if (formData.newPassword !== formData.confirmPassword) {
             setError('Passwords do not match');
+            setIsSubmitting(false);
             return;
         }
     
         try {
             const response = await API.post('reset-password/', { 
-                email: location.state?.email, 
-                new_password: newPassword, 
-                confirm_password: confirmPassword 
+                email, 
+                new_password: formData.newPassword, 
+                confirm_password: formData.confirmPassword,
+                otp
             });
     
             if (response.status === 200) {
-                alert('Password reset successful! Redirecting to login...');
-                navigate('/login'); // Redirect to login page
+                setMessage('Password reset successful!');
+                setTimeout(() => {
+                    navigate('/login');
+                }, 2000);
             } else {
-                setError(response.data.message);
+                setError(response.data.message || 'Error resetting password');
             }
         } catch (error) {
             setError(error.response?.data?.message || 'Error resetting password');
+        } finally {
+            setIsSubmitting(false);
         }
     };
     
@@ -71,15 +83,15 @@ function ResetPassword() {
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
                                 New Password
                             </label>
                             <div className="mt-1 relative">
                                 <input
                                     type={showPassword ? 'text' : 'password'}
-                                    id="password"
-                                    name="password"
-                                    value={formData.password}
+                                    id="newPassword"
+                                    name="newPassword"
+                                    value={formData.newPassword}
                                     onChange={handleChange}
                                     className="input"
                                     required

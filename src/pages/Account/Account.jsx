@@ -1,15 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { FiUser, FiHeart, FiClock, FiSettings, FiTrash2, FiShoppingCart } from 'react-icons/fi';
+import { FiUser, FiHeart, FiClock, FiSettings, FiTrash2, FiShoppingCart, FiMail, FiPhone, FiCalendar } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { toggleSavedItem } from '../../store/slices/savedItemsSlice';
 import { addToComparison } from '../../store/slices/productSlice';
 import { toast } from 'react-hot-toast';
+import API from '../../api';
 
 function Account() {
     const [activeTab, setActiveTab] = useState('profile');
+    const [profileData, setProfileData] = useState({
+        full_name: '',
+        email: '',
+        phone: '',
+        created_at: ''
+    });
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState('');
+    
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const { formatPrice } = useLanguage();
@@ -17,6 +28,68 @@ function Account() {
     // Get saved items and comparison list from Redux
     const savedItems = useSelector((state) => state.savedItems.items);
     const comparisonList = useSelector((state) => state.products.comparisonList);
+
+    useEffect(() => {
+        // Fetch profile data when component mounts
+        fetchProfileData();
+    }, []);
+
+    const fetchProfileData = async () => {
+        setIsLoading(true);
+        try {
+            const response = await API.get('profile/');
+            setProfileData({
+                full_name: response.data.full_name || '',
+                email: response.data.email || '',
+                phone: '', // API doesn't provide phone yet
+                created_at: response.data.created_at || ''
+            });
+        } catch (err) {
+            console.error('Error fetching profile:', err);
+            toast.error('Failed to load profile data');
+            // If unauthorized, redirect to login
+            if (err.response?.status === 401) {
+                navigate('/login');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleInputChange = (e) => {
+        const { id, value } = e.target;
+        setProfileData(prev => ({
+            ...prev,
+            [id]: value
+        }));
+    };
+
+    const handleSaveProfile = async (e) => {
+        e.preventDefault();
+        setIsSaving(true);
+        setError('');
+        
+        try {
+            const response = await API.put('profile/', {
+                full_name: profileData.full_name
+            });
+            
+            if (response.status === 200) {
+                toast.success('Profile updated successfully');
+            }
+        } catch (err) {
+            console.error('Error updating profile:', err);
+            setError(err.response?.data?.message || 'Failed to update profile');
+            toast.error('Failed to update profile');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleChangePassword = (e) => {
+        e.preventDefault();
+        navigate('/forgot-password');
+    };
 
     const handleRemoveItem = (item) => {
         dispatch(toggleSavedItem(item));
@@ -32,35 +105,83 @@ function Account() {
         }
     };
 
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        return new Intl.DateTimeFormat('en-US', {
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric'
+        }).format(date);
+    };
+
     const renderTabContent = () => {
         switch (activeTab) {
             case 'profile':
                 return (
                     <div className="space-y-6">
                         <h2 className="text-2xl font-bold">Profile</h2>
-                        <form className="space-y-4">
-                            <div>
-                                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                                    Full Name
-                                </label>
-                                <input type="text" id="name" className="input mt-1" />
+                        
+                        {isLoading ? (
+                            <div className="flex justify-center py-8">
+                                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
                             </div>
-                            <div>
-                                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                                    Email
-                                </label>
-                                <input type="email" id="email" className="input mt-1" />
-                            </div>
-                            <div>
-                                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                                    Phone
-                                </label>
-                                <input type="tel" id="phone" className="input mt-1" />
-                            </div>
-                            <button type="submit" className="btn-primary">
-                                Save Changes
-                            </button>
-                        </form>
+                        ) : (
+                            <>
+                                <div className="bg-gray-50 p-4 rounded-lg mb-6">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <FiMail className="text-gray-500" />
+                                        <span className="font-medium">Email:</span>
+                                        <span>{profileData.email}</span>
+                                    </div>
+                                    
+                                    {profileData.created_at && (
+                                        <div className="flex items-center gap-3">
+                                            <FiCalendar className="text-gray-500" />
+                                            <span className="font-medium">Member Since:</span>
+                                            <span>{formatDate(profileData.created_at)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <form onSubmit={handleSaveProfile} className="space-y-4">
+                                    <div>
+                                        <label htmlFor="full_name" className="block text-sm font-medium text-gray-700">
+                                            Full Name
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="full_name" 
+                                            value={profileData.full_name} 
+                                            onChange={handleInputChange}
+                                            className="input mt-1" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                                            Phone (optional)
+                                        </label>
+                                        <input 
+                                            type="tel" 
+                                            id="phone" 
+                                            value={profileData.phone} 
+                                            onChange={handleInputChange}
+                                            className="input mt-1" 
+                                        />
+                                    </div>
+                                    
+                                    {error && <div className="text-red-600 text-sm">{error}</div>}
+                                    
+                                    <button 
+                                        type="submit" 
+                                        className="btn-primary"
+                                        disabled={isSaving}
+                                    >
+                                        {isSaving ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                </form>
+                            </>
+                        )}
                     </div>
                 );
             case 'favorites':
@@ -174,7 +295,9 @@ function Account() {
                             </div>
                             <div>
                                 <h3 className="font-medium mb-4">Password</h3>
-                                <button className="btn-secondary">Change Password</button>
+                                <button onClick={handleChangePassword} className="btn-secondary">
+                                    Change Password
+                                </button>
                             </div>
                             <div>
                                 <h3 className="font-medium mb-4">Delete Account</h3>

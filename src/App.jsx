@@ -26,7 +26,8 @@ import {
   ForgotPassword,
   OTPVerification,
   PrivacyPolicy,
-  TermsOfService
+  TermsOfService,
+  ResetPassword
 } from './pages';
 import { ProtectedRoute, GuestRoute } from './components';
 import { PersistGate } from 'redux-persist/integration/react';
@@ -55,6 +56,8 @@ function App() {
                 <Route path="/language" element={<Language />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route path="/terms" element={<TermsOfService />} />
+                <Route path='/otp-verification' element={<OTPVerification />} />
+                <Route path='/reset-password' element={<ResetPassword />} />
 
                 {/* Protected Routes */}
                 <Route path="/cart" element={<Cart />} />

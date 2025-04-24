@@ -1,9 +1,10 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiX, FiStar, FiShoppingBag, FiArrowLeft, FiCheck, FiInfo } from 'react-icons/fi';
+import { FiX, FiStar, FiShoppingBag, FiArrowLeft, FiCheck, FiInfo, FiDollarSign, FiRefreshCw } from 'react-icons/fi';
 import { removeFromComparison } from '../../store/slices/productSlice';
 import { useLanguage } from '../../context/LanguageContext';
+import { getExchangeRate } from '../../utils/currencyUtils';
 
 const ComparisonAttribute = ({ label, values, highlight = false }) => (
     <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 p-4 ${highlight ? 'bg-gray-50' : ''} rounded-lg`}>
@@ -19,8 +20,12 @@ const ComparisonAttribute = ({ label, values, highlight = false }) => (
 function ProductComparison() {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const { formatPrice } = useLanguage();
+    const { formatPrice, currency, baseCurrency } = useLanguage();
     const comparisonList = useSelector((state) => state.products.comparisonList);
+    
+    // Get the exchange rate between base currency and selected currency
+    const currentExchangeRate = getExchangeRate(baseCurrency, currency.code);
+    const showCurrencyBanner = baseCurrency !== currency.code;
 
     const getHighlightedValue = (attribute) => {
         const values = comparisonList.map(product => product[attribute]);
@@ -84,6 +89,24 @@ function ProductComparison() {
                     Back to Search
                 </motion.button>
             </motion.div>
+
+            {/* Currency Conversion Banner */}
+            {showCurrencyBanner && (
+                <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-center"
+                >
+                    <FiDollarSign className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0" />
+                    <div className="flex-grow">
+                        <p className="text-blue-700 font-medium">Prices converted from {baseCurrency} to {currency.code}</p>
+                        <p className="text-blue-600 text-sm flex items-center">
+                            <FiRefreshCw className="w-4 h-4 mr-1" />
+                            <span>Exchange rate: 1 {baseCurrency} = {currentExchangeRate.toFixed(4)} {currency.code}</span>
+                        </p>
+                    </div>
+                </motion.div>
+            )}
 
             {/* Product Cards - Mobile View */}
             <div className="md:hidden space-y-6 mb-8">

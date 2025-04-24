@@ -23,15 +23,20 @@ function ForgotPassword() {
             if (response.status === 200) {
                 setMessage('OTP sent to your email. Please check your inbox.');
     
-                // Redirect to OTPVerification page instead of Reset Password
+                // Redirect to OTPVerification page with isPasswordReset flag
                 setTimeout(() => {
-                    navigate('/otp-verification', { state: { email } });
-                }, 3000);
+                    navigate('/otp-verification', { 
+                        state: { 
+                            email,
+                            isPasswordReset: true
+                        } 
+                    });
+                }, 1500);
             } else {
                 setError(response.data.message || 'Something went wrong. Please try again.');
             }
         } catch (err) {
-            setError('An error occurred. Please try again later.');
+            setError(err.response?.data?.message || 'An error occurred. Please try again later.');
         } finally {
             setIsSubmitting(false);
         }
@@ -56,7 +61,7 @@ function ForgotPassword() {
                     <div className="text-center mb-8">
                         <h2 className="text-3xl font-bold text-gray-900">Reset Password</h2>
                         <p className="text-gray-600 mt-2">
-                            Enter your email and we'll send you reset instructions.
+                            Enter your email and we'll send you a code to reset your password.
                         </p>
                     </div>
 
@@ -84,7 +89,7 @@ function ForgotPassword() {
                             className="btn-primary w-full"
                             disabled={isSubmitting}
                         >
-                            {isSubmitting ? 'Sending...' : 'Send Reset Link'}
+                            {isSubmitting ? 'Sending...' : 'Send Reset Code'}
                         </button>
                     </form>
                 </motion.div>

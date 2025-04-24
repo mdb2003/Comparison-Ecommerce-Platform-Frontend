@@ -53,14 +53,10 @@ function Login() {
             email: formData.email,
             password: formData.password,
           });
-          console.log(response.data.access);
-          console.log(response.data.refresh);
-          console.log(response.data);
-          console.log(response);
-          
           
           localStorage.setItem('accessToken', response.data.access_token); // Store JWT
           localStorage.setItem('refreshToken', response.data.refresh_token); // Store Refresh Token
+          localStorage.setItem('userEmail', formData.email); // Store email for quick access
           navigate('/'); // Redirect to dashboard or home
         } else {
           // Signup

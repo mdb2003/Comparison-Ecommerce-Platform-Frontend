@@ -13,10 +13,12 @@ API.interceptors.request.use(
         const token = localStorage.getItem('access_token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
+            console.log('This is token: ', token);
         }
         return config;
     },
     (error) => {
+        console.error('Request interceptor error:', error);
         return Promise.reject(error);
     }
 );
@@ -25,6 +27,14 @@ API.interceptors.request.use(
 API.interceptors.response.use(
     (response) => response,
     async (error) => {
+        // Check if error or error.response is undefined (connection errors)
+        if (!error || !error.response) {
+            console.error('Network error occurred (server might be down):', error.message);
+            return Promise.reject({
+                message: 'Unable to connect to server. Please check if the backend server is running.'
+            });
+        }
+
         const originalRequest = error.config;
 
         // If error is 401 and we haven't tried to refresh token yet
